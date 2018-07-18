@@ -13,6 +13,7 @@
         <module>gcp-mysql</module>
         <module>gcp-pub-sub</module>
         <module>gcp-runtime-config</module>
+        <module>gcp-vision</module>
     </modules>
 
 

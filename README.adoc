@@ -872,10 +872,12 @@ The client lobs a hundred HTTP requests when the application starts up. The `Res
 package com.example.gcp.trace;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.stream.IntStream;
@@ -884,16 +886,25 @@ import java.util.stream.IntStream;
 @SpringBootApplication
 public class TraceClientApplication {
 
-		@Bean
-		ApplicationRunner client(RestTemplate restTemplate) {
-				return args ->
-					IntStream
-						.range(0, 100)
-						.mapToObj(i ->
-							restTemplate
-								.getForEntity("http://localhost:8081/greeting/{id}", String.class, i)
-								.getBody())
-						.forEach(response -> log.info("result: " + response));
+		@Component
+		public static class Client {
+
+				private final RestTemplate restTemplate;
+
+				public Client(RestTemplate restTemplate) {
+						this.restTemplate = restTemplate;
+				}
+
+				@EventListener(ApplicationReadyEvent.class)
+				public void before() {
+						IntStream
+							.range(0, 100)
+							.mapToObj(i ->
+								restTemplate
+									.getForEntity("http://localhost:8081/greeting/{id}", String.class, i)
+									.getBody())
+							.forEach(response -> log.info("result: " + response));
+				}
 		}
 
 		@Bean
@@ -931,16 +942,113 @@ In order to see this in action, you'll need to start the service, then the clien
 .Looking at trace information in the Google Cloud Console
 image::images/stackdriver-trace.png[]
 
+Google Cloud Stack Driver is the umbrella name for a host of services including monitoring, tracing, and - and this is _so wicked cool!_ - live debugging of running applications. You could easily spend a lot more time - you _should_! - in this section of the console. Suffice it to say that Google is _gets_ observability and that's reflected in their services.
 
+== Using Other Google Cloud APIS
 
-// TODO : TRACING
-// TODO : STORAGE
-// TODO : USING ARBITRARY APIS
+The Spring Cloud GCP project strives to provide integrations with Spring and some of the GCP services that map well to Spring. But GCP is _vast_! There are a good deal many other services out there that you can consume via https://github.com/GoogleCloudPlatform/google-cloud-java/[their direct Java SDK] or even through their REST APIs, directly.  Spring Cloud GCP can make working with those APIs a bit easier, too! In this section, we're going to integrate with the Google Cloud Vision API which supports analyzing images and doing feature detection.
 
-//  Notes on Spring Cloud GCP
-//
-// * there's a whole lab: http://bit.ly/spring-gcp-lab
-// * in order to login automatically from the client: `gcloud auth application-default login`. The result is stored in `~/.config`.
-// * in order to use the services from Java, somewhere a DefaultCredentialsProvider is created. By default it consults `-Dspring.cloud.gcp.credentials.location` https://github.com/spring-cloud/spring-cloud-gcp/blob/2fdecb1520ccc794e6a90432ec6e509ee40c09c2/spring-cloud-gcp-core/src/main/java/org/springframework/cloud/gcp/core/DefaultCredentialsProvider.java
-// * you can view the data in Spanner in the Cloud Console  https://console.cloud.google.com/spanner/instances/guestbook/databases/messages/schema/guestbook_message?project=pgtm-jlong&folder&organizationId&spannerTableDatasize=20
- 
+As always, you will need to enable the API:
+
+[source,shell]
+----
+gcloud services enable vision.googleapis.com
+----
+
+When you use the auto-configurations in Spring Cloud GCP they conveniently obtain the required OAuth scopes to work with a given API on your behalf, and you never need to worry about it. We'll need to do this work ourselves for other services. This is easy enough, thankfully. Use the `spring.cloud.gcp.credentials.scopes` property to obtain a general, platform-wide, catch-all scope that can be used to request permission for all basic Google Cloud Platform APIs.
+
+.src/main/resources/applications.properties
+[source,java]
+----
+spring.cloud.gcp.credentials.scopes=https://www.googleapis.com/auth/cloud-platform
+----
+
+And.. that's it! Now you can use the API as you like. Let's standup a simple REST API to which you can post an image as a multipart file upload and have the Google Cloud Vision API do feature detection.
+
+[source,java]
+----
+package com.example.gcp.vision;
+
+import com.google.api.gax.core.CredentialsProvider;
+import com.google.cloud.vision.v1.*;
+import com.google.protobuf.ByteString;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Collections;
+
+@SpringBootApplication
+public class VisionApplication {
+
+		// <1>
+		@Bean
+		ImageAnnotatorClient imageAnnotatorClient(
+			CredentialsProvider credentialsProvider) throws IOException {
+				ImageAnnotatorSettings settings = ImageAnnotatorSettings
+					.newBuilder()
+					.setCredentialsProvider(credentialsProvider)
+					.build();
+				return ImageAnnotatorClient.create(settings);
+		}
+
+		@Slf4j
+		@RestController
+		public static class ImageAnalyzerRestController {
+
+				private final ImageAnnotatorClient client;
+
+				private final Feature feature = Feature
+					.newBuilder()
+					.setType(Feature.Type.LABEL_DETECTION) // <2>
+					.build();
+
+				ImageAnalyzerRestController(ImageAnnotatorClient client) {
+						this.client = client;
+				}
+
+				@PostMapping("/analyze")
+				String analyze(@RequestParam MultipartFile image) throws IOException {
+						// <3>
+						byte[] data = image.getBytes();
+						ByteString imgBytes = ByteString.copyFrom(data);
+						Image img = Image.newBuilder().setContent(imgBytes).build();
+						AnnotateImageRequest request = AnnotateImageRequest
+							.newBuilder()
+							.addFeatures(this.feature)
+							.setImage(img)
+							.build();
+						BatchAnnotateImagesResponse responses = this.client
+							.batchAnnotateImages(Collections.singletonList(request));
+						AnnotateImageResponse reply = responses.getResponses(0);
+						return reply.toString();
+				}
+		}
+
+		public static void main(String args[]) {
+				SpringApplication.run(VisionApplication.class, args);
+		}
+}
+----
+<1> we're configuring the Google Cloud Vision client manually. This is more work than you might do if you had a Spring Boot starter, but it's definitely not bad!
+<2> what kind of analysis do we want the client to do?
+<3> Spring MVC can turn multipart file uploads into a `MultipartFile` from which we can easily extract bytes to feed into this API.
+
+You can POST an image to this endpoint using `curl` or any other general purpose HTTP client. Here's how it would work with `curl`:
+
+[source,shell]
+----
+curl  -F "image=@/home/jlong/Desktop/soup.jpg" http://localhost:8080/analyze
+----
+
+There are a _zillion_ other APIs with whom you might work! Here we are only just beginning to scratch the surface of what's possible.  Check https://cloud.google.com/products/[out this service catalog]! There are things like Google Cloud DataStore, Google Storage, Firebase, BigQuery,  Apigee, video streaming services, IoT services, machine learning, Google Tensorflow, Google Dataflow, Google Cloud AutoML, Cloud Natural Language, Cloud Speech-to-Text, Cloud Text-to-Speech, Genomics APIs, Video Intelligence, and _so_ much more.
+
+== Authentication
+
+As we've worked through these examples we've relied on the default behavior of the Google Cloud SDKs and Spring Cloud GCP working with a default local installation of the Google Cloud SDK and the `gcloud` CLI. Spring Cloud GCP's auto-configuration configures a `DefaultCredentialsProvider`. You may need to know about this mechanism if you're trying to run your application in, for example, a CI environment or a cloud provider like Cloud Foundry or Heroku.
