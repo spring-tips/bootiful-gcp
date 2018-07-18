@@ -148,7 +148,7 @@ Then, provision a new database in that Google Cloud SQL instance:
 gcloud sql databases create reservations --instance reservations
 ```
 
-Spring won't know how to connect to the SQL database instance hosted on GCP. Add the GCP MySQL starter: `org.springframework.cloud` : `spring-cloud-gcp-starter-sql-mysql`. This starter, and a dash of configuration, can connect your application to the platform.
+There are a couple of ways to establish a secured connection to this CloudSQL instance, e.g. [configure the JDBC driver wit a SSL Socket Factory] and/or using [SQL Proxy](https://cloud.google.com/sql/docs/mysql/connect-external-app#proxy). To make all the configuration easier though, you can add the GCP MySQL starter: `org.springframework.cloud` : `spring-cloud-gcp-starter-sql-mysql`. This starter, and a dash of configuration, can connect your application to the platform.
 
 What configuration, you say? Well, Spring applications have bean definitions (in Java code) and property definitions (in any number of different property sources, including `.yaml` and  `.properties` files and, as we'll see later, GCP's RuntimeConfig mechanism). You can selectively activate particular bean definitions and property definitions with _profiles_. Spring profiles are arbitrary labels that identify distinct bean and property configurations that could be selectively _activated_. In this example, we're using the `mysql` profile.
 
@@ -252,7 +252,7 @@ Run the application and confirm that the results are reflected in the output.
 
 At this point you should be on familiar footing; you can use Spring Data JPA and Spring Data REST, JOOQ, MyBatis, or any of the various JDBC-based technologies, along with Spring Boot, to work with this GCP-managed MySQL instance.
 
-== NoSQL or NewSQL Data and Google Spanner
+== NoSQL or NewSQL Data and Google Cloud Spanner
 
 MySQL and PostgreSQL are familiar friends in an unfamiliar land, but they're not why we're here. No no. Were I you, I'd look at a platform like GCP and take from it the best bits; the parts that have no analog elsewhere. The things that separate it from the other platforms. One such distinguishing feature is https://en.wikipedia.org/wiki/Spanner_(database)[Google Spanner]. Spanner is.. something else entirely.
 
@@ -262,13 +262,15 @@ Google first revealed Spanner when they introduced F1, a SQL database engine tha
 
 Spanner is able to offer such a broad amount of geographic redundancy thanks to a method Google has developed of being able to give precise times to applications to let them write, read and replicate data without making mistakes. Spanner's "TrueTime" API depends upon GPS receivers and atomic clocks that have been installed in Google's datacentres to let applications get accurate time readings locally without having to sync globally.
 
-Spanner is a successor to technologies like Bigtable. BigTable only supported eventually consistent replication across datacenters. According to the paper: "At least 300 applications within Google use Megastore (despite its relatively low performance) because its data model is simpler to manage than Bigtable's and because of its support for synchronous replication across datacenters." At the time, applications like GMail, Picasa, Calendar, Android Market and AppEngine relied on MegaStore.
+There are a number of database technologies at Google, such as [Bigtable](https://ai.google/research/pubs/pub27898) (columnar database, great for high throughput writes), and [Megastore](https://ai.google/research/pubs/pub36971) (NoSQL Database). Bigtable only supported eventually consistent replication across datacenters. According to the paper: "At least 300 applications within Google use Megastore (despite its relatively low performance) because its data model is simpler to manage than Bigtable's and because of its support for synchronous replication across datacenters." At the time, applications like GMail, Picasa, Calendar, Android Market and AppEngine relied on Megastore.
 
-Transactions are a first-class concept in Spanner driven, in part, by their absence in BigTable.
+Spanner was designed to be "scalable, multi-version, globally distributed, and synchronously-replicated database". Transactions are a first-class concept in Spanner driven, in part, by their absence in Bigtable. 
 
 "The lack of cross-row transactions in Bigtable led to frequent complaints; Percolator
 was in part built to address this failing. Some authors have claimed that general two-phase commit is too expensive to support, because of the performance or availability
 problems that it brings. We believe it is better to have application programmers deal with performance problems due to overuse of transactions as bottlenecks arise, rather than always coding around the lack of transactions. Running two-phase commit over Paxos mitigates the availability problems."
+
+Each of the databases have their use cases. Bigtable (on GCP as [Cloud Bigtable](https://cloud.google.com/bigtable/)) is great for consistent low latency and high throughput workload. While Megastore (on GCP as [Cloud Datastore](https://cloud.google.com/datastore/)) can be used as a managed NoSQL data store with ACID transactions. Spanner (on GCP as [Cloud Spanner](https://cloud.google.com/spanner/)), is meant for horizontalliy scalable, highly available, and strongly consistent RDBMs workloads.
 
 Well alright! I'm simultaneously interested and intimidated! I _want_ Spanner, but I _don't_ want to have to rack and stack servers and synchronize GPS recivers and atomic clocks. But, _something_ tells me Google'd be happy to do that for me, so let's try it out.
 
@@ -418,7 +420,7 @@ Let's look at application integration with Google Cloud Pub/Sub. Google Cloud Pu
 
 The flow when using Google Cloud Pub/Sub is exactly as you'd expect: a message is sent to a topic in the Pub/Sub broker (hosted  in the cloud by GCP) which then persists it for you. Subscribers can either have messages pushed to it (through a webhook) or they can poll for the mesages from the broker. The subscriber receives messages from the broker and acknowledges each one. When a subscriber acknowledges a messaage it is removed from the subscriber's subscription queue. Any client that can speak HTTPS can use this service. There's no other API required.
 
-The domain model is fairly straightforward if you've ever used any other messaging system (JMS, AMQP, Apache Kafka, Kestrel): a topic is the thing to which messages are published. A subscription represents the stream o messages from a specific topic that are to be delivered to a specific client application.  A topic can have multiple subscriptions.  A subscription can have many subscribers.  If you want to distribute different messages around to different subscribers, then all the subscribers must be subscribing to the same subscription.  If you want to publish the same messages to all the subscribers, then each subscriber needs to subscribe to its own subscription.
+The domain model is fairly straightforward if you've ever used any other messaging system (JMS, AMQP, Apache Kafka, Kestrel): a topic is the thing to which messages are published. A subscription represents the stream of messages from a specific topic that are to be delivered to a specific client application.  A topic can have multiple subscriptions.  A subscription can have many subscribers.  If you want to distribute different messages around to different subscribers, then all the subscribers must be subscribing to the same subscription.  If you want to publish the same messages to all the subscribers, then each subscriber needs to subscribe to its own subscription.
 
 Pub/Sub delivery is at-least once. Hence, you must deal with idempotency and/or de-duplicate messages if you cannot process the same message more than once.
 
@@ -942,9 +944,9 @@ In order to see this in action, you'll need to start the service, then the clien
 .Looking at trace information in the Google Cloud Console
 image::images/stackdriver-trace.png[]
 
-Google Cloud Stack Driver is the umbrella name for a host of services including monitoring, tracing, and - and this is _so wicked cool!_ - live debugging of running applications. You could easily spend a lot more time - you _should_! - in this section of the console. Suffice it to say that Google is _gets_ observability and that's reflected in their services.
+Google Cloud Stackdriver is the umbrella name for a host of services including monitoring, tracing, and - and this is _so wicked cool!_ - live debugging of running applications. You could easily spend a lot more time - you _should_! - in this section of the console. Suffice it to say that Google is _gets_ observability and that's reflected in their services.
 
-== Using Other Google Cloud APIS
+== Using Other Google Cloud APIs
 
 The Spring Cloud GCP project strives to provide integrations with Spring and some of the GCP services that map well to Spring. But GCP is _vast_! There are a good deal many other services out there that you can consume via https://github.com/GoogleCloudPlatform/google-cloud-java/[their direct Java SDK] or even through their REST APIs, directly.  Spring Cloud GCP can make working with those APIs a bit easier, too! In this section, we're going to integrate with the Google Cloud Vision API which supports analyzing images and doing feature detection.
 
