@@ -63,6 +63,8 @@ public class VisionApplication {
 		}
 
 		public static void main(String args[]) {
+
+				System.out.println("[" + System.getenv("SPRING_CLOUD_GCP_CREDENTIALS_ENCODED_KEY") + "]");
 				SpringApplication.run(VisionApplication.class, args);
 		}
 }

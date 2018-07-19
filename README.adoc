@@ -1051,4 +1051,44 @@ There are a _zillion_ other APIs with whom you might work! Here we are only just
 
 == Authentication
 
-As we've worked through these examples we've relied on the default behavior of the Google Cloud SDKs and Spring Cloud GCP working with a default local installation of the Google Cloud SDK and the `gcloud` CLI. Spring Cloud GCP's auto-configuration configures a `DefaultCredentialsProvider`. You may need to know about this mechanism if you're trying to run your application in, for example, a CI environment or a cloud provider like Cloud Foundry or Heroku.
+As we've worked through these examples we've relied on the default behavior of the Google Cloud SDKs and Spring Cloud GCP working with a default local installation of the Google Cloud SDK and the `gcloud` CLI. Spring Cloud GCP's auto-configuration configures a `DefaultCredentialsProvider`. You may need to know about this mechanism if you're trying to run your application in, for example, a CI environment or a cloud provider like Cloud Foundry or Heroku. The https://cloud.google.com/docs/authentication/production#auth-cloud-implicit-java[process is explained here]. The gist is that you will need to describe, as narrowly as possible, the privileges your application can have using a Google Cloud _service account_ and then render those credentials into a file.
+
+[source,shell]
+----
+
+PROJECT_ID=$(gcloud config list --format 'value(core.project)')
+
+# <1>
+NAME=gcp-service-app
+
+# <2>
+gcloud iam service-accounts create $NAME
+
+# <3>
+gcloud projects add-iam-policy-binding $PROJECT_ID  --member "serviceAccount:${NAME}@${PROJECT_ID}.iam.gserviceaccount.com" --role "roles/owner"
+
+# <4>
+gcloud iam service-accounts keys create ${NAME}.json --iam-account ${NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+
+----
+<1> the name is arbitrary. You might use a name that reflects the nature of your application.
+<2> create the service account giving it a name
+<3> add a role - `roles/owner` - to our service binding. You would do well to be more granular in assignment of your roles.
+<4> generate a file that contains the key
+
+
+The result of this process should be a `.json` file on your local machine.
+
+WARNING:  That `.json` file is a secret! Do _not_ share or lose track of it!
+
+You need to tell the Spring Cloud application where to find this credential. You can pass it to Spring Cloud GCP as a file location or a Base 64-encoded `String`. Let's do the latter.
+
+[source,shell]
+----
+
+GSA=`cat ~/Desktop/gcp-service-app.json | base64 `
+APP_NAME=gcp-vision
+cf set-env $APP_NAME SPRING_CLOUD_GCP_CREDENTIALS_ENCODEDKEY $GSA
+cf restage $APP_NAME
+cf restart $APP_NAME
+----
