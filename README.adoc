@@ -1049,9 +1049,11 @@ curl  -F "image=@/home/jlong/Desktop/soup.jpg" http://localhost:8080/analyze
 
 There are a _zillion_ other APIs with whom you might work! Here we are only just beginning to scratch the surface of what's possible.  Check https://cloud.google.com/products/[out this service catalog]! There are things like Google Cloud DataStore, Google Storage, Firebase, BigQuery,  Apigee, video streaming services, IoT services, machine learning, Google Tensorflow, Google Dataflow, Google Cloud AutoML, Cloud Natural Language, Cloud Speech-to-Text, Cloud Text-to-Speech, Genomics APIs, Video Intelligence, and _so_ much more.
 
-== Authentication
+== To Production
 
-As we've worked through these examples we've relied on the default behavior of the Google Cloud SDKs and Spring Cloud GCP working with a default local installation of the Google Cloud SDK and the `gcloud` CLI. Spring Cloud GCP's auto-configuration configures a `DefaultCredentialsProvider`. You may need to know about this mechanism if you're trying to run your application in, for example, a CI environment or a cloud provider like Cloud Foundry or Heroku. The https://cloud.google.com/docs/authentication/production#auth-cloud-implicit-java[process is explained here]. The gist is that you will need to describe, as narrowly as possible, the privileges your application can have using a Google Cloud _service account_ and then render those credentials into a file.
+As we've worked through these examples we've relied on the default authentication of the Google Cloud SDKs and Spring Cloud GCP working with a local installation of the Google Cloud SDK and the `gcloud` CLI. Spring Cloud GCP's auto-configuration configures a `DefaultCredentialsProvider` that looks for _some_ way to authenticate. Everything's worked fine on our local machine so far because we ran the interactive authentication prompt and confirmed on the Google Cloud website the linking of our authorities to this application. But what if you want to run tests in a CI environment or deploy the application to a cloud platform?
+
+We need a way to convey our authorization when running in these environments. We can do this on Google Cloud using _service accounts_. The https://cloud.google.com/docs/authentication/production#auth-cloud-implicit-java[process is explained here]. The gist is that you will need to describe, as narrowly as possible, the privileges your application can have using a Google Cloud service account and then render those credentials into a file which we will feed to the application.
 
 [source,shell]
 ----
@@ -1074,21 +1076,55 @@ gcloud iam service-accounts keys create ${NAME}.json --iam-account ${NAME}@${PRO
 <1> the name is arbitrary. You might use a name that reflects the nature of your application.
 <2> create the service account giving it a name
 <3> add a role - `roles/owner` - to our service binding. You would do well to be more granular in assignment of your roles.
-<4> generate a file that contains the key
+<4> generate a file, `gcp-service-app.json`, that contains the key.
 
-
-The result of this process should be a `.json` file on your local machine.
+The result of this process should be a `.json` file, `gcp-service-app.json`, on your local machine.
 
 WARNING:  That `.json` file is a secret! Do _not_ share or lose track of it!
 
-You need to tell the Spring Cloud application where to find this credential. You can pass it to Spring Cloud GCP as a file location or a Base 64-encoded `String`. Let's do the latter.
+You need to tell the Spring Cloud application where to find this credential. You can pass it to Spring Cloud GCP as a file location or a Base 64-encoded `String`. Let's do the latter. We can use the  `spring.cloud.gcp.credentials.encoded-key`  to convey the Base64-encoded contents of the file we just generated.
 
+This is a  secret value, and it will differ from one environment to another. We don't want it checked into version control, in `src/main/resources/application.properties`, and even if we did we'd still need to maintain different environment-specific values. Spring Boot lets us provide overrides when running the application. We could use `application.properties` or `application.yml` files. We could stash thm in environment-specific Runtime Config. We could provide them as `-D` arguments or environment variables when running the application. So could easily say `java -Dspring.cloud.gcp.credentials.encoded-key=... -jar ..` to provide a value that either contributes a new value to the application or overrides the existing value in `src/main/resources/application.properties`.
+
+Environment variables are a more natural fit for platforms like Cloud Foundry or Heroku where we don't necessarily want to have control over _how_ an application is run, over its  `java`  incantation. The platform Buildpack does that for us. Let's look at how we could run the application locally.
+
+.run.sh
 [source,shell]
 ----
+#!/bin/bash
 
-GSA=`cat ~/Desktop/gcp-service-app.json | base64 `
-APP_NAME=gcp-vision
-cf set-env $APP_NAME SPRING_CLOUD_GCP_CREDENTIALS_ENCODEDKEY $GSA
-cf restage $APP_NAME
+# <1>
+export SPRING_CLOUD_GCP_CREDENTIALS_ENCODED_KEY=$( cat $GCP_SERVICE_ACCOUNT_KEY_FILE | base64 -w0  )
+export SPRING_CLOUD_GCP_PROJECT_ID=$(gcloud config list --format 'value(core.project)')
+
+mvn clean spring-boot:run
+----
+<1> when you run this script, set the environment variable `SPRING_CLOUD_GCP_CREDENTIALS_ENCODED_KEY` before running the application to point to the location of your service account `.json` file.
+
+On my machine, I was able to run that script like this: `GCP_SERVICE_ACCOUNT_KEY_FILE=/home/jlong/keys/gcp-service-account.json ./run.sh`. Your local path for the `.json` file will most likely vary.
+
+You can translate those environment variables as needed for your particular CI environment. Once your application has been tested and integrated, it's off to production! For me, production is Cloud Foundry (running on top of Google Cloud, no less). Here's a script that deploys the application to the Cloud Foundry instance in which I'm authenticated.
+
+.deploy.sh
+[source,shell]
+----
+#!/usr/bin/env bash
+
+mvn -DskipTests=true clean package
+
+# <1>
+cf d -f $APP_NAME
+
+# <2>
+cf push --no-start --random-route -p $JAR $APP_NAME
+cf set-env $APP_NAME SPRING_CLOUD_GCP_CREDENTIALS_ENCODED_KEY "$( cat $GCP_SERVICE_ACCOUNT_KEY_FILE | base64 -w0 )"
+cf set-env $APP_NAME SPRING_CLOUD_GCP_PROJECT_ID $(gcloud config list --format 'value(core.project)')
+
+# <3>
 cf restart $APP_NAME
 ----
+<1> warning! this script **deletes** the existing application. You don't need to, but it ensures things are cleanly reset :)
+<2> here we push the application, giving it a random route, and tell Cloud Foundry to _not_ start it. Then, we specify environment variables for the application.
+<3> finally, we start the application now that we're done securing it.
+
+TIP: In both `run.sh` and `deploy.sh` we used `base64 -w0` to encode the `.json` service account file in Base64. One of us is running on Linux and the other on OS X. The `-w0` operand ensures that the Base64 encoded file isn't hard-wrapped, that it is one contiguous line of text, when running on Linux against the `GNU` `base64` utility.  
