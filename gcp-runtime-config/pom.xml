@@ -16,7 +16,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
-        <spring-cloud-gcp.version>1.1.0.BUILD-SNAPSHOT</spring-cloud-gcp.version>
+        <spring-cloud-gcp.version>1.1.0.M1</spring-cloud-gcp.version>
         <spring-cloud.version>Finchley.RELEASE</spring-cloud.version>
     </properties>
     <dependencies>
@@ -35,11 +35,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>20.0</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -79,6 +74,14 @@
     </build>
     <repositories>
         <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
             <id>spring-snapshot</id>
             <name>Spring Snapshot</name>
             <url>https://repo.spring.io/snapshot</url>
@@ -87,4 +90,5 @@
             </snapshots>
         </repository>
     </repositories>
+
 </project>

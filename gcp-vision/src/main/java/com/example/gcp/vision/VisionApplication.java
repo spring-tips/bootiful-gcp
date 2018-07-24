@@ -36,10 +36,8 @@ public class VisionApplication {
 
 				private final ImageAnnotatorClient client;
 
-				private final Feature feature = Feature
-					.newBuilder()
-					.setType(Feature.Type.LABEL_DETECTION) // <2>
-					.build();
+				private final Feature labelDetection = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
+				private final Feature textDetection = Feature.newBuilder().setType(Feature.Type.DOCUMENT_TEXT_DETECTION).build();
 
 				ImageAnalyzerRestController(ImageAnnotatorClient client) {
 						this.client = client;
@@ -51,9 +49,11 @@ public class VisionApplication {
 						byte[] data = image.getBytes();
 						ByteString imgBytes = ByteString.copyFrom(data);
 						Image img = Image.newBuilder().setContent(imgBytes).build();
+
 						AnnotateImageRequest request = AnnotateImageRequest
 							.newBuilder()
-							.addFeatures(this.feature)
+							.addFeatures(this.labelDetection)
+							.addFeatures(this.textDetection)
 							.setImage(img)
 							.build();
 						BatchAnnotateImagesResponse responses = this.client

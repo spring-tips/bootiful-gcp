@@ -60,7 +60,7 @@ You'll need, at least for now, the Spring Cloud _and_ Spring Cloud GCP bill of m
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
-        <spring-cloud-gcp.version>1.1.0.BUILD-SNAPSHOT</spring-cloud-gcp.version>
+        <spring-cloud-gcp.version>1.1.0.M1</spring-cloud-gcp.version>
         <spring-cloud.version>Finchley.RELEASE</spring-cloud.version>
     </properties>
 
@@ -68,11 +68,6 @@ You'll need, at least for now, the Spring Cloud _and_ Spring Cloud GCP bill of m
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-gcp-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>20.0</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -731,7 +726,7 @@ greeting = Hello ${user.name} (running on ${os.name} ${os.version})!
 <1> we want to, for this DEMO, expose all the Actuator endpoints to be able to interrogate them. In any other context, configure security.
 <2> we want to include all the Actuator endpoints
 
-Let's turn now to the Java code.  You'll need to add the following dependencies to your build: `org.springframework.boot` : `spring-boot-starter-web`,  `org.springframework.boot` : `spring-boot-starter-actuator`,  `org.springframework.cloud` : `spring-cloud-gcp-starter-config` and `com.google.guava` : `guava` : `20.0`. Yes, having to include and manage down a version of Guava made me just as sad as it did you! We add the Spring Cloud GCP dependency to get the correct configuration for the Runtime Config support. We add the Guava dependency because there's an intractible dependency somewhere downstream that I have every hope will one day be resolved. We add Spring Boot Actuator so we have access to a few operational endpoints, `/actuator/env` and `/actuator/refresh`.
+Let's turn now to the Java code.  You'll need to add the following dependencies to your build: `org.springframework.boot` : `spring-boot-starter-web`,  `org.springframework.boot` : `spring-boot-starter-actuator`,  `org.springframework.cloud` : `spring-cloud-gcp-starter-config`. We add the Spring Cloud GCP dependency to get the correct configuration for the Runtime Config support. We add Spring Boot Actuator so we have access to a few operational endpoints, `/actuator/env` and `/actuator/refresh`.
 
 Let's see some code!
 
@@ -875,6 +870,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.cloud.sleuth.annotation.NewSpan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -896,6 +892,7 @@ public class TraceClientApplication {
 				}
 
 				@EventListener(ApplicationReadyEvent.class)
+				@NewSpan("client") // <1>
 				public void before() {
 						IntStream
 							.range(0, 100)
@@ -917,6 +914,8 @@ public class TraceClientApplication {
 		}
 }
 ----
+<1> the client is a straightforward use of `RestTemplate` to connect to our service. If we wanted to send 100 requests with no shared parent span, we wouldn't need `@NewSpan`. If we'd had 100 requests arrive from the outside and hit an HTTP endpoint in the client and that endpoint then resulted in 100 requests going to the service, we'd have a shared overarching span. A single trace with multiple spans.
+
 
 And the configuration for this node is virtually identical to that of the service.
 

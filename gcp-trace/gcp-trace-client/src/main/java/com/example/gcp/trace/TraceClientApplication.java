@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.cloud.sleuth.annotation.NewSpan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ public class TraceClientApplication {
 				}
 
 				@EventListener(ApplicationReadyEvent.class)
+				@NewSpan("client") // <1>
 				public void before() {
 						IntStream
 							.range(0, 100)
