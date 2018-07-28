@@ -944,7 +944,7 @@ In order to see this in action, you'll need to start the service, then the clien
 .Looking at trace information in the Google Cloud Console
 image::images/stackdriver-trace.png[]
 
-Google Cloud Stackdriver is the umbrella name for a host of services including monitoring, tracing, and - and this is _so wicked cool!_ - live debugging of running applications. You could easily spend a lot more time - you _should_! - in this section of the console. Suffice it to say that Google is _gets_ observability and that's reflected in their services.
+Stackdriver is the umbrella name for a host of services including monitoring, tracing, and - and this is _so wicked cool!_ - live debugging of running applications. You could easily spend a lot more time - you _should_! - in this section of the console. Suffice it to say that Google is _gets_ observability and that's reflected in their services.
 
 == Using Other Google Cloud APIs
 
