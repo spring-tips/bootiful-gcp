@@ -15,7 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.Collections;
 
-// curl -F "image=@$HOME/Pictures/soup.jpg" http://localhost:8080/analyze
+// curl -F "image=@$HOME/Desktop/cat.jpg" http://localhost:8080/analyze
 @SpringBootApplication
 public class VisionApplication {
 
