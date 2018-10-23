@@ -1,0 +1,45 @@
+
+
+@Configuration
+@RestController
+class PublisherConfig {
+
+		private final PubSubTemplate template;
+		private final String topic;
+
+		PublisherConfig(PubSubTemplate template, 
+			@Value("${reservations.topic:reservations}") String t) {
+				this.template = template;
+				this.topic = t;
+		}
+
+		// <1>
+		@PostMapping("/publish/{name}")
+		void publish(@PathVariable String name) {
+				this.template.publish(this.topic, "Hello " + name + "!");
+		}
+}
+
+
+@Slf4j
+@Configuration
+class SubscriberConfig {
+
+	private final PubSubTemplate template;
+	private final String subscription;
+
+	SubscriberConfig(PubSubTemplate template, 
+				@Value("${reservations.subscription:reservations-subscription}") String s) {
+		this.template = template;
+		this.subscription = s;
+	}
+
+	@EventListener(ApplicationReadyEvent.class)
+	public void start() {
+		//<1>
+		this.template.subscribe(this.subscription, msg -> {
+			log.info("consumed new message: [" + msg.getPubsubMessage().getData().toStringUtf8() + "]");
+			msg.ack();
+		});
+	}
+}

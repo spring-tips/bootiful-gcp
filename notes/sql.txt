@@ -1,0 +1,20 @@
+## application.properties
+spring.cloud.gcp.sql.database-name=reservations
+spring.cloud.gcp.sql.instance-connection-name=pgtm-jlong:us-central1:reservations
+spring.datasource.initialization-mode=always
+spring.datasource.hikari.maximum-pool-size=2
+
+
+## schema.sql 
+
+DROP TABLE IF EXISTS reservations;
+
+CREATE TABLE reservations (
+  id   BIGINT    NOT NULL AUTO_INCREMENT,
+  name CHAR(128) NOT NULL,
+  PRIMARY KEY (id)
+);
+
+## data.sql
+insert into reservations(name) values('ray');
+insert into reservations(name) values('josh');
