@@ -1,4 +1,4 @@
-package gcp;
+package com.example.gcp;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,6 +10,7 @@ import org.springframework.cloud.gcp.data.spanner.core.mapping.PrimaryKey;
 import org.springframework.cloud.gcp.data.spanner.core.mapping.Table;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Component;
 
 @Log4j2
@@ -18,28 +19,31 @@ public class SpannerDemo {
 
 	private final ReservationRepository reservationRepository;
 
-	public SpannerDemo(ReservationRepository reservationRepository) {
+	SpannerDemo(ReservationRepository reservationRepository) {
 		this.reservationRepository = reservationRepository;
 	}
 
-	@Data
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@Table(name = "reservations")
-	public static class Reservation {
-
-		@Id
-		@PrimaryKey
-		private String id;
-
-		@Column(name = "name")
-		private String reservationName;
-	}
-
 	@EventListener(ApplicationReadyEvent.class)
-	public void spanner(ApplicationReadyEvent e) {
+	public void spanner() {
 		this.reservationRepository
 			.findAll()
-			.forEach(r -> log.info("reservation: " + r.toString()));
+			.forEach(r -> log.info("Spanner reservation: " + r.toString()));
 	}
+}
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "reservations")
+class Reservation {
+
+	@Id
+	@PrimaryKey
+	private String id;
+
+	@Column(name = "name")
+	private String reservationName;
+}
+
+interface ReservationRepository extends CrudRepository<Reservation, String> {
 }

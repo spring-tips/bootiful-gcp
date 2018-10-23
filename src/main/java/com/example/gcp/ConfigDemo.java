@@ -1,4 +1,4 @@
-package gcp;
+package com.example.gcp;
 
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,15 +13,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class ConfigDemo {
 
-	private final String message;
+	private final String greeting;
 
-	public ConfigDemo(@Value("${greeting}") String message) {
-		this.message = message;
+	ConfigDemo(@Value("${greeting}") String greeting) {
+		this.greeting = greeting;
 	}
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void config() {
-		log.info("message coming from GCP: " + this.message);
+		log.info("greeting: " + this.greeting);
 	}
-
 }
