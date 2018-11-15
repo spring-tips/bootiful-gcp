@@ -21,11 +21,10 @@ import java.util.Collections;
 @Configuration
 public class VisionDemo {
 
-
 	private final ImageAnnotatorClient client;
 	private final Resource cat;
 
-	VisionDemo(@Value("file://${user.home}/Desktop/cat.jpg") Resource cat,
+	VisionDemo(@Value("classpath:/cat.jpg") Resource cat,
 												CredentialsProvider cp) throws IOException {
 		this.cat = cat;
 		this.client = this.buildImageAnnotatorClient(cp);
@@ -36,7 +35,7 @@ public class VisionDemo {
 
 		Feature labelsFeature = Feature.newBuilder().setType(Feature.Type.LABEL_DETECTION).build();
 		Feature documentsFeature = Feature.newBuilder().setType(Feature.Type.DOCUMENT_TEXT_DETECTION).build();
-		final byte[] data = FileCopyUtils.copyToByteArray(this.cat.getInputStream());
+		byte[] data = FileCopyUtils.copyToByteArray(this.cat.getInputStream());
 		Image img = Image.newBuilder().setContent(ByteString.copyFrom(data)).build();
 		AnnotateImageRequest air = AnnotateImageRequest
 			.newBuilder()
