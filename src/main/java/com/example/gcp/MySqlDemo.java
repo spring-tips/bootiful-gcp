@@ -7,6 +7,7 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,9 +27,12 @@ public class MySqlDemo {
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void mysql() throws Exception {
-		final List<Reservation> reservations = this.jdbcTemplate
-			.query("select  * from reservations",
-				(resultSet, i) -> new Reservation(resultSet.getLong("id"), resultSet.getString("name")));
+
+		RowMapper<Reservation> reservationRowMapper =
+			(resultSet, i) -> new Reservation(resultSet.getLong("id"), resultSet.getString("name"));
+
+		List<Reservation> reservations = this.jdbcTemplate.query("select  * from reservations", reservationRowMapper);
+
 		reservations.forEach(r -> log.info("MySQL reservation: " + r.toString()));
 	}
 
